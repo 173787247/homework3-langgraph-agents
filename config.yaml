@@ -1,0 +1,64 @@
+# 系统配置
+system:
+  name: "Multi-Agent Customer Service System"
+  version: "1.0.0"
+  debug: false
+
+# LLM 配置
+llm:
+  provider: "deepseek"  # deepseek 或 openai
+  model: "deepseek-chat"
+  temperature: 0.7
+  max_tokens: 2000
+  timeout: 30
+
+# 智能体配置
+agents:
+  receptionist:
+    name: "接待员"
+    role: "负责用户接待、问题初步分类和引导"
+    max_retries: 3
+    timeout: 10
+    
+  analyst:
+    name: "问题分析师"
+    role: "深入分析用户问题，提取关键信息"
+    max_retries: 3
+    timeout: 15
+    
+  solution_expert:
+    name: "解决方案专家"
+    role: "基于分析结果提供专业解决方案"
+    max_retries: 3
+    timeout: 20
+
+# 工作流配置
+workflow:
+  max_iterations: 10
+  enable_human_intervention: true
+  auto_route: true
+
+# 记忆配置
+memory:
+  provider: "sqlite"  # sqlite 或 postgresql
+  max_history: 50
+  enable_persistence: true
+
+# 工具配置
+tools:
+  knowledge_base:
+    enabled: true
+    url: "http://localhost:8002"
+    timeout: 5
+    
+  order_query:
+    enabled: true
+    url: "http://localhost:8003"
+    timeout: 5
+
+# 日志配置
+logging:
+  level: "INFO"
+  file: "./logs/app.log"
+  max_size: "10MB"
+  backup_count: 5
