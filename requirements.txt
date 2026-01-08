@@ -20,6 +20,7 @@ aiosqlite>=0.20.0
 python-dotenv>=1.0.0
 pyyaml>=6.0.0
 tqdm>=4.66.0
+aiohttp>=3.9.0  # 用于调用外部 API（12306、高德地图）
 
 # 日志和监控
 loguru>=0.7.0

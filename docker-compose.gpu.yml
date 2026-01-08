@@ -26,6 +26,24 @@ services:
       - LLM_MODEL=${LLM_MODEL:-deepseek-chat}
       - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
       - LLM_MAX_TOKENS=${LLM_MAX_TOKENS:-2000}
+      # MCP 工具 API 配置（从环境变量读取）
+      - WEATHER_SERVICE=${WEATHER_SERVICE:-mock}
+      - QWEATHER_API_KEY=${QWEATHER_API_KEY:-}
+      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY:-}
+      - AMAP_API_KEY=${AMAP_API_KEY:-}
+      # 12306 火车票查询 MCP 服务配置
+      - TRAIN_TICKET_SERVICE=${TRAIN_TICKET_SERVICE:-mock}
+      - TRAIN_TICKET_MCP_COMMAND=${TRAIN_TICKET_MCP_COMMAND:-npx}
+      - TRAIN_TICKET_MCP_ARGS=${TRAIN_TICKET_MCP_ARGS:--y,12306-mcp}
+      # 时间查询 MCP 服务配置（使用 Python MCP 服务器）
+      - TIME_MCP_COMMAND=${TIME_MCP_COMMAND:-python}
+      - TIME_MCP_ARGS=${TIME_MCP_ARGS:--m tools.time_mcp_server}
+      # 记忆/知识库 MCP 服务配置
+      - MEMORY_MCP_COMMAND=${MEMORY_MCP_COMMAND:-npx}
+      - MEMORY_MCP_ARGS=${MEMORY_MCP_ARGS:--y @modelcontextprotocol/server-memory}
+      # 文件系统 MCP 服务配置（需要指定允许访问的目录）
+      - FILESYSTEM_MCP_COMMAND=${FILESYSTEM_MCP_COMMAND:-npx}
+      - FILESYSTEM_MCP_ARGS=${FILESYSTEM_MCP_ARGS:--y @modelcontextprotocol/server-filesystem /app/data /app/logs /app/cache}
       # 数据库配置
       - DATABASE_URL=sqlite:///./data/conversations.db
       # MCP 工具配置

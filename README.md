@@ -11,7 +11,7 @@
 
 ✅ **多角色智能体协作**：三个不同角色的智能体协同工作  
 ✅ **状态管理和数据传递**：基于 LangGraph 的状态管理机制  
-✅ **外部工具集成**：集成 MCP 工具（知识库查询、订单查询）  
+✅ **外部工具集成**：集成 4 个真实 MCP 服务（12306火车票查询、时间查询、知识库/记忆系统、文件系统操作）  
 ✅ **记忆持久化**：支持多轮对话，记忆持久化存储  
 ✅ **条件路由和动态决策**：根据问题类型智能路由到不同智能体  
 ✅ **人机协同交互**：支持人工介入和确认机制  
@@ -48,9 +48,14 @@ homework3-langgraph-agents/
 │   └── customer_service_graph.py # 客服工作流图
 ├── tools/                       # 外部工具
 │   ├── __init__.py
-│   ├── mcp_tools.py             # MCP 工具集成
-│   ├── knowledge_base_tool.py   # 知识库查询工具
-│   └── order_query_tool.py      # 订单查询工具
+│   ├── mcp_tools.py             # MCP 工具管理器
+│   ├── train_ticket_tool.py     # 12306 火车票查询 MCP
+│   ├── time_tool.py             # 时间查询 MCP
+│   ├── time_mcp_server.py       # 时间 MCP 服务器（Python实现）
+│   ├── memory_tool.py           # 知识库/记忆系统 MCP
+│   ├── filesystem_tool.py       # 文件系统操作 MCP
+│   ├── weather_tool.py          # 天气查询工具（REST API）
+│   └── amap_tool.py             # 高德地图地址查询工具（REST API）
 ├── memory/                      # 记忆管理
 │   ├── __init__.py
 │   ├── memory_store.py          # 记忆存储
@@ -187,6 +192,82 @@ curl -X POST http://localhost:8000/api/chat \
   }'
 ```
 
+## MCP 工具配置
+
+### 已集成的 4 个真实 MCP 服务
+
+1. **12306 火车票查询 MCP**
+   - 服务：`npx 12306-mcp`（免费，无需注册）
+   - 功能：查询火车票、车站代码、车次信息
+   - 配置：已在 `.env` 中配置 `TRAIN_TICKET_SERVICE=mcp`
+   - 适合角色：接待员（识别需求）、分析师（提取参数）、专家（提供建议）
+
+2. **时间查询 MCP**
+   - 服务：Python MCP 服务器（`tools/time_mcp_server.py`）
+   - 功能：查询当前时间、日期信息、星期几
+   - 配置：已在 `.env` 中配置 `TIME_MCP_COMMAND=python`
+   - 适合角色：接待员（回答时间问题）
+
+3. **知识库/记忆系统 MCP**
+   - 服务：`npx @modelcontextprotocol/server-memory`（免费，无需注册）
+   - 功能：存储和搜索知识、FAQ、历史记录
+   - 配置：已在 `.env` 中配置 `MEMORY_MCP_COMMAND=npx`
+   - 适合角色：接待员（FAQ查询）、分析师（历史记录）、专家（解决方案库）
+
+4. **文件系统操作 MCP**
+   - 服务：`npx @modelcontextprotocol/server-filesystem`（免费，无需注册）
+   - 功能：读取文件、列出目录、查看日志
+   - 配置：已在 `.env` 中配置 `FILESYSTEM_MCP_COMMAND=npx`
+   - 适合角色：分析师（查看日志）、专家（读取文档）
+
+### 其他工具（REST API）
+
+### 天气查询（免费API）
+
+系统支持多个免费的天气API服务：
+
+1. **和风天气**（推荐，免费额度：每天1000次）：
+   - 申请地址：https://dev.qweather.com/
+   - 免费额度：每天1000次调用
+   - 配置方式：
+   ```bash
+   WEATHER_SERVICE=qweather
+   QWEATHER_API_KEY=your_qweather_key_here
+   ```
+
+2. **OpenWeatherMap**（免费，每天60次）：
+   - 申请地址：https://openweathermap.org/api
+   - 免费额度：每天60次调用
+   - 配置方式：
+   ```bash
+   WEATHER_SERVICE=openweather
+   OPENWEATHER_API_KEY=your_openweather_key_here
+   ```
+
+3. **模拟数据**（默认，无需配置）：
+   - 不配置API Key时，系统使用模拟数据
+   - 可以完整展示工具集成功能
+   ```bash
+   WEATHER_SERVICE=mock
+   ```
+
+### 高德地图地址查询
+
+1. **申请 API Key**（免费额度：每天6000次）：
+   - 访问：https://console.amap.com/dev/key/app
+   - 注册账号并创建应用
+   - 获取 Web 服务 API Key
+   - **免费额度**：每天 6000 次调用，足够个人开发和小型项目使用
+
+2. **配置 API Key**：
+   ```bash
+   AMAP_API_KEY=your_amap_api_key_here
+   ```
+
+3. **模拟数据**（默认）：
+   - 不配置 API Key 时，系统使用模拟数据
+   - 可以完整展示工具集成功能
+
 ## 系统架构
 
 详见 [ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -210,11 +291,24 @@ curl -X POST http://localhost:8000/api/chat \
 | 创新性（10%）| ✅ 智能路由决策、人机协同机制 |
 | 文档完善度（10%）| ✅ README、架构文档、代码注释 |
 
+## 演示视频
+
+📹 **演示视频链接**：[待上传]
+
+演示内容：
+- 系统启动和配置
+- 三个智能体的协作流程
+- 4个MCP服务的使用演示（12306、时间、知识库、文件系统）
+- Web界面交互示例
+
 ## 参考文献
 
 - LangGraph 官方文档: https://langchain-ai.github.io/langgraph/
 - MCP 协议文档: https://modelcontextprotocol.io/
 - LangChain 文档: https://python.langchain.com/
+- 12306 MCP: https://www.npmjs.com/package/12306-mcp
+- Memory MCP: https://www.npmjs.com/package/@modelcontextprotocol/server-memory
+- Filesystem MCP: https://www.npmjs.com/package/@modelcontextprotocol/server-filesystem
 
 ## 许可证
 

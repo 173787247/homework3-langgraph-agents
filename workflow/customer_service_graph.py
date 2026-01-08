@@ -161,27 +161,146 @@ class CustomerServiceGraph:
         problem_category = receptionist_result.get("problem_category", "")
         
         tool_results = {}
+        user_input = state.get("user_input", "").lower()
         
-        # 根据问题类型调用相应工具
-        if problem_category == "订单问题" and "订单号" in key_parameters:
-            order_id = key_parameters["订单号"]
+        # 根据问题类型和关键词调用相应工具
+        
+        # 1. 天气查询（免费API）
+        weather_keywords = ["天气", "温度", "气温", "下雨", "晴天", "weather", "temperature", "climate"]
+        if any(keyword in user_input for keyword in weather_keywords):
+            city = key_parameters.get("城市") or key_parameters.get("city") or key_parameters.get("地点")
+            country = key_parameters.get("国家") or key_parameters.get("country")
+            
+            # 如果没有从参数中提取到，尝试从用户输入中提取城市名
+            if not city:
+                # 简单的城市名提取（实际应该用更智能的方式）
+                common_cities = ["北京", "上海", "广州", "深圳", "杭州", "南京", "武汉", "成都", "重庆", "西安",
+                               "beijing", "shanghai", "guangzhou", "shenzhen"]
+                for city_name in common_cities:
+                    if city_name in user_input:
+                        city = city_name
+                        break
+                # 如果还是没找到，尝试提取"天气"关键词前后的内容
+                if not city and "天气" in user_input:
+                    idx = user_input.find("天气")
+                    if idx > 0:
+                        city = user_input[:idx].strip()
+            
+            if city:
+                try:
+                    weather_result = await self.tool_manager.query_weather(
+                        city=city,
+                        country=country
+                    )
+                    tool_results["weather"] = weather_result
+                    logger.info(f"已查询天气: {city}")
+                except Exception as e:
+                    logger.error(f"天气查询失败: {e}")
+                    tool_results["weather"] = {"error": str(e)}
+        
+        # 2. 地址查询（高德地图）
+        address_keywords = ["地址", "位置", "在哪里", "怎么去", "导航", "地图", "address", "location", "map"]
+        if any(keyword in user_input for keyword in address_keywords):
+            address = key_parameters.get("地址") or key_parameters.get("位置") or key_parameters.get("address")
+            city = key_parameters.get("城市") or key_parameters.get("city")
+            
+            # 如果没有从参数中提取到，尝试从用户输入中提取
+            if not address:
+                # 简单的地址提取
+                for keyword in address_keywords:
+                    if keyword in user_input:
+                        # 提取关键词后的内容作为地址
+                        idx = user_input.find(keyword)
+                        if idx != -1:
+                            address = user_input[idx + len(keyword):].strip()
+                            break
+            
+            if address:
+                try:
+                    address_result = await self.tool_manager.query_address(
+                        address=address,
+                        city=city
+                    )
+                    tool_results["address"] = address_result
+                    logger.info(f"已查询地址: {address}")
+                except Exception as e:
+                    logger.error(f"地址查询失败: {e}")
+                    tool_results["address"] = {"error": str(e)}
+        
+        # 3. 地点搜索（高德地图 POI）
+        poi_keywords = ["附近", "找", "搜索", "推荐", "哪里有", "poi", "search"]
+        if any(keyword in user_input for keyword in poi_keywords):
+            keywords = key_parameters.get("关键词") or key_parameters.get("keywords")
+            city = key_parameters.get("城市") or key_parameters.get("city")
+            
+            if keywords:
+                try:
+                    poi_result = await self.tool_manager.search_location(
+                        keywords=keywords,
+                        city=city
+                    )
+                    tool_results["poi_search"] = poi_result
+                    logger.info(f"已搜索地点: {keywords}")
+                except Exception as e:
+                    logger.error(f"地点搜索失败: {e}")
+                    tool_results["poi_search"] = {"error": str(e)}
+        
+        # 4. 时间查询（MCP 服务）
+        time_keywords = ["时间", "几点", "现在", "今天", "日期", "几号", "星期", "time", "date", "现在几点", "今天几号"]
+        if any(keyword in user_input for keyword in time_keywords):
+            timezone = key_parameters.get("时区") or key_parameters.get("timezone")
+            
+            # 判断是查询时间还是日期
+            if any(kw in user_input for kw in ["几号", "日期", "date", "星期"]):
+                try:
+                    date_result = await self.tool_manager.get_date_info()
+                    tool_results["date_info"] = date_result
+                    logger.info("已查询日期信息")
+                except Exception as e:
+                    logger.error(f"日期查询失败: {e}")
+                    tool_results["date_info"] = {"error": str(e)}
+            else:
+                try:
+                    time_result = await self.tool_manager.query_time(timezone)
+                    tool_results["time_info"] = time_result
+                    logger.info("已查询时间信息")
+                except Exception as e:
+                    logger.error(f"时间查询失败: {e}")
+                    tool_results["time_info"] = {"error": str(e)}
+        
+        # 5. 知识库查询（Memory MCP）- 适合接待员和解决方案专家
+        kb_keywords = ["常见问题", "FAQ", "帮助", "怎么", "如何", "是什么", "知识库", "文档", "说明", "help", "faq", "knowledge"]
+        if any(keyword in user_input for keyword in kb_keywords):
+            query = key_parameters.get("查询") or key_parameters.get("query") or user_input
             try:
-                order_info = await self.tool_manager.query_order(order_id)
-                tool_results["order_info"] = order_info
+                kb_result = await self.tool_manager.search_knowledge_base(query)
+                tool_results["knowledge_base"] = kb_result
+                logger.info(f"已搜索知识库: {query}")
             except Exception as e:
-                logger.error(f"订单查询失败: {e}")
-                tool_results["order_info"] = {"error": str(e)}
+                logger.error(f"知识库搜索失败: {e}")
+                tool_results["knowledge_base"] = {"error": str(e)}
         
-        # 查询知识库
-        try:
-            knowledge_result = await self.tool_manager.query_knowledge_base(
-                query=state.get("user_input", ""),
-                category=problem_category
-            )
-            tool_results["knowledge_base"] = knowledge_result
-        except Exception as e:
-            logger.error(f"知识库查询失败: {e}")
-            tool_results["knowledge_base"] = {"error": str(e)}
+        # 6. 文件系统操作（Filesystem MCP）- 适合问题分析师查看日志
+        file_keywords = ["日志", "文件", "查看", "读取", "log", "file", "查看日志", "读取文件"]
+        if any(keyword in user_input for keyword in file_keywords):
+            file_path = key_parameters.get("文件路径") or key_parameters.get("file_path")
+            
+            # 尝试从用户输入中提取文件路径
+            if not file_path:
+                for keyword in ["日志", "log"]:
+                    if keyword in user_input:
+                        # 默认日志路径
+                        file_path = "/app/logs/app.log"
+                        break
+            
+            if file_path:
+                try:
+                    file_result = await self.tool_manager.read_file(file_path)
+                    tool_results["file_content"] = file_result
+                    logger.info(f"已读取文件: {file_path}")
+                except Exception as e:
+                    logger.error(f"文件读取失败: {e}")
+                    tool_results["file_content"] = {"error": str(e)}
         
         state["tool_results"] = tool_results
         return state
