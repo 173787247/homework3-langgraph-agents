@@ -417,12 +417,44 @@ class TrainTicketTool:
                         
                         logger.info(f"解析到 {len(trains)} 个车次")
                         
+                        # 规范化车次数据格式
+                        normalized_trains = []
+                        for train in trains:
+                            if isinstance(train, dict):
+                                # 提取车次号（可能在不同字段中）
+                                train_no = train.get("train_no") or train.get("trainNo") or train.get("trainNumber") or train.get("station_train_code", "")
+                                
+                                # 如果train_no是内部代码（如"240000G10336"），尝试提取车次号
+                                # 车次号通常是G、D、K、C、Z、T等字母开头的格式
+                                import re
+                                if train_no and len(train_no) > 6:
+                                    # 尝试从内部代码中提取车次号（如从"240000G10336"提取"G103"）
+                                    match = re.search(r'([GDKCTZ]\d+)', train_no)
+                                    if match:
+                                        train_no = match.group(1)
+                                
+                                # 提取其他字段
+                                normalized_train = {
+                                    "train_no": train_no or "未知",
+                                    "train_type": train.get("train_type") or train.get("trainType") or self._get_train_type(train_no),
+                                    "from_station": train.get("from_station") or train.get("fromStation") or train.get("start_station_name", ""),
+                                    "to_station": train.get("to_station") or train.get("toStation") or train.get("end_station_name", ""),
+                                    "departure_time": train.get("departure_time") or train.get("departureTime") or train.get("start_time", ""),
+                                    "arrival_time": train.get("arrival_time") or train.get("arrivalTime") or train.get("arrive_time", ""),
+                                    "duration": train.get("duration") or train.get("lishi", ""),
+                                    "business_seat": train.get("business_seat") or train.get("swz_num", {}),
+                                    "first_class": train.get("first_class") or train.get("zy_num", {}),
+                                    "second_class": train.get("second_class") or train.get("ze_num", {}),
+                                    "hard_seat": train.get("hard_seat") or train.get("yz_num", {})
+                                }
+                                normalized_trains.append(normalized_train)
+                        
                         return {
                             "success": True,
                             "from_station": from_station,
                             "to_station": to_station,
                             "date": date,
-                            "trains": trains,
+                            "trains": normalized_trains,
                             "source": "12306 MCP (真实MCP服务)"
                         }
                     else:
@@ -431,6 +463,25 @@ class TrainTicketTool:
         except Exception as e:
             logger.error(f"MCP 查询失败: {e}")
             raise
+    
+    def _get_train_type(self, train_no: str) -> str:
+        """根据车次号判断列车类型"""
+        if not train_no:
+            return "未知"
+        if train_no.startswith("G"):
+            return "高速"
+        elif train_no.startswith("D"):
+            return "动车"
+        elif train_no.startswith("C"):
+            return "城际"
+        elif train_no.startswith("Z"):
+            return "直达"
+        elif train_no.startswith("T"):
+            return "特快"
+        elif train_no.startswith("K"):
+            return "快速"
+        else:
+            return "普通"
     
     async def query_station_code(self, station_name: str) -> Dict[str, Any]:
         """

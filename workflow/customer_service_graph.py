@@ -87,6 +87,7 @@ class CustomerServiceGraph:
             {
                 "analyst": "analyst",
                 "solution_expert": "solution_expert",
+                "call_tools": "call_tools",  # 简单查询直接调用工具
                 "end": END
             }
         )
@@ -245,28 +246,101 @@ class CustomerServiceGraph:
                     logger.error(f"地点搜索失败: {e}")
                     tool_results["poi_search"] = {"error": str(e)}
         
-        # 4. 时间查询（MCP 服务）
-        time_keywords = ["时间", "几点", "现在", "今天", "日期", "几号", "星期", "time", "date", "现在几点", "今天几号"]
-        if any(keyword in user_input for keyword in time_keywords):
-            timezone = key_parameters.get("时区") or key_parameters.get("timezone")
+        # 3.5. 火车票查询（12306 MCP 服务）
+        train_keywords = ["火车票", "车票", "高铁", "动车", "火车", "train", "ticket", "12306"]
+        if any(keyword in user_input for keyword in train_keywords):
+            from_station = key_parameters.get("出发站") or key_parameters.get("from_station") or key_parameters.get("起点")
+            to_station = key_parameters.get("到达站") or key_parameters.get("to_station") or key_parameters.get("终点")
+            date = key_parameters.get("日期") or key_parameters.get("date")
             
-            # 判断是查询时间还是日期
-            if any(kw in user_input for kw in ["几号", "日期", "date", "星期"]):
+            # 尝试从用户输入中提取出发站和到达站
+            if not from_station or not to_station:
+                # 查找"到"或"->"或"-"
+                separators = ["到", "->", "-", "至"]
+                for sep in separators:
+                    if sep in user_input:
+                        idx = user_input.find(sep)
+                        if idx > 0:
+                            # 提取"到"之前的部分作为出发站
+                            from_part = user_input[:idx].strip()
+                            # 提取"到"之后的部分作为到达站
+                            to_part = user_input[idx + len(sep):].strip()
+                            
+                            # 清理出发站：去除前面的"我想"、"查询"等
+                            from_part = from_part.replace("我想", "").replace("查询", "").replace("查", "").strip()
+                            # 清理到达站：去除后面的"火车票"、"车票"、"的"等
+                            to_part = to_part.replace("火车票", "").replace("车票", "").replace("的", "").strip()
+                            
+                            # 提取城市名（常见城市列表）
+                            common_cities = ["北京", "上海", "广州", "深圳", "杭州", "南京", "武汉", "成都", "重庆", "西安",
+                                           "天津", "苏州", "长沙", "郑州", "青岛", "大连", "厦门", "福州", "济南", "合肥",
+                                           "beijing", "shanghai", "guangzhou", "shenzhen"]
+                            
+                            # 从from_part中提取城市名
+                            if not from_station:
+                                for city in common_cities:
+                                    if city in from_part:
+                                        from_station = city
+                                        break
+                                # 如果没找到，使用清理后的from_part（去除常见前缀）
+                                if not from_station and from_part:
+                                    from_station = from_part
+                            
+                            # 从to_part中提取城市名
+                            if not to_station:
+                                for city in common_cities:
+                                    if city in to_part:
+                                        to_station = city
+                                        break
+                                # 如果没找到，使用清理后的to_part（去除常见后缀）
+                                if not to_station and to_part:
+                                    to_station = to_part
+                            break
+            
+            if from_station and to_station:
                 try:
-                    date_result = await self.tool_manager.get_date_info()
-                    tool_results["date_info"] = date_result
-                    logger.info("已查询日期信息")
+                    train_result = await self.tool_manager.query_train_tickets(
+                        from_station=from_station,
+                        to_station=to_station,
+                        date=date
+                    )
+                    tool_results["train_tickets"] = train_result
+                    logger.info(f"已查询火车票: {from_station} -> {to_station}")
                 except Exception as e:
-                    logger.error(f"日期查询失败: {e}")
-                    tool_results["date_info"] = {"error": str(e)}
-            else:
-                try:
-                    time_result = await self.tool_manager.query_time(timezone)
-                    tool_results["time_info"] = time_result
-                    logger.info("已查询时间信息")
-                except Exception as e:
-                    logger.error(f"时间查询失败: {e}")
-                    tool_results["time_info"] = {"error": str(e)}
+                    logger.error(f"火车票查询失败: {e}")
+                    tool_results["train_tickets"] = {"error": str(e)}
+        
+        # 4. 时间查询（MCP 服务）- 只在没有天气查询时才执行
+        # 避免"现在天气"这样的查询被误识别为时间查询
+        if "weather" not in tool_results and "天气" not in user_input:
+            time_keywords = ["时间", "几点", "现在几点", "今天几号", "日期", "几号", "星期", "time", "date"]
+            # 更精确的时间查询匹配：必须包含明确的时间查询关键词，且不包含天气相关词
+            is_time_query = any(keyword in user_input for keyword in ["时间", "几点", "现在几点", "今天几号", "几号", "星期", "time", "date"])
+            # 如果只是"现在"或"今天"但没有明确的时间查询意图，且包含天气关键词，则不查询时间
+            if "现在" in user_input or "今天" in user_input:
+                if "天气" in user_input or "温度" in user_input or "气温" in user_input:
+                    is_time_query = False
+            
+            if is_time_query:
+                timezone = key_parameters.get("时区") or key_parameters.get("timezone")
+                
+                # 判断是查询时间还是日期
+                if any(kw in user_input for kw in ["几号", "日期", "date", "星期"]):
+                    try:
+                        date_result = await self.tool_manager.get_date_info()
+                        tool_results["date_info"] = date_result
+                        logger.info("已查询日期信息")
+                    except Exception as e:
+                        logger.error(f"日期查询失败: {e}")
+                        tool_results["date_info"] = {"error": str(e)}
+                else:
+                    try:
+                        time_result = await self.tool_manager.query_time(timezone)
+                        tool_results["time_info"] = time_result
+                        logger.info("已查询时间信息")
+                    except Exception as e:
+                        logger.error(f"时间查询失败: {e}")
+                        tool_results["time_info"] = {"error": str(e)}
         
         # 5. 知识库查询（Memory MCP）- 适合接待员和解决方案专家
         kb_keywords = ["常见问题", "FAQ", "帮助", "怎么", "如何", "是什么", "知识库", "文档", "说明", "help", "faq", "knowledge"]
@@ -311,13 +385,20 @@ class CustomerServiceGraph:
         state["needs_human_intervention"] = True
         return state
     
-    def _route_after_receptionist(self, state: CustomerServiceState) -> Literal["analyst", "solution_expert", "end"]:
+    def _route_after_receptionist(self, state: CustomerServiceState) -> Literal["analyst", "solution_expert", "call_tools", "end"]:
         """接待员后的路由决策"""
         next_agent = state.get("next_agent")
         receptionist_result = state.get("receptionist_result", {})
         if not isinstance(receptionist_result, dict):
             receptionist_result = {}
         needs_analysis = receptionist_result.get("needs_analysis", True)
+        user_input = state.get("user_input", "").lower()
+        
+        # 对于简单查询（时间、日期），直接调用工具，跳过分析师
+        simple_queries = ["时间", "几点", "现在", "今天", "日期", "几号", "星期", "time", "date"]
+        if any(keyword in user_input for keyword in simple_queries):
+            logger.info("检测到简单查询，直接调用工具")
+            return "call_tools"
         
         if not needs_analysis:
             return "end"

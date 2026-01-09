@@ -54,8 +54,12 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FILE=/app/logs/app.log
     ports:
-      # FastAPI 服务端口
+      # 主服务端口（完整工作流）
       - "8000:8000"
+      # 三个智能体独立服务端口
+      - "8001:8001"  # 接待员智能体
+      - "8002:8002"  # 问题分析师智能体
+      - "8003:8003"  # 解决方案专家智能体
     restart: unless-stopped
     # NVIDIA GPU支持（RTX 5080）
     deploy:

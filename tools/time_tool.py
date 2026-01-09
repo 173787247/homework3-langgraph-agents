@@ -209,7 +209,7 @@ class TimeTool:
             logger.error(f"MCP 日期查询失败: {e}", exc_info=True)
             raise
     
-    def _get_system_date_info(self) -> Dict[str, Any]:
+    async def _get_system_date_info(self) -> Dict[str, Any]:
         """使用系统时间获取日期信息（回退方案）"""
         dt = datetime.now()
         weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]

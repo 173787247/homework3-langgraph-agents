@@ -15,6 +15,7 @@ if str(project_root) not in sys.path:
 # 导入工具类
 from tools.weather_tool import WeatherTool
 from tools.amap_tool import AmapTool
+from tools.train_ticket_tool import TrainTicketTool
 from tools.time_tool import TimeTool
 from tools.memory_tool import MemoryTool
 from tools.filesystem_tool import FilesystemTool
@@ -31,6 +32,7 @@ class MCPToolManager:
         # 使用真实的 MCP 工具
         self.weather_tool = WeatherTool()
         self.amap_tool = AmapTool()
+        self.train_ticket_tool = TrainTicketTool()
         self.time_tool = TimeTool()
         self.memory_tool = MemoryTool()
         self.filesystem_tool = FilesystemTool()
@@ -117,6 +119,36 @@ class MCPToolManager:
             }
         except Exception as e:
             logger.error(f"地点搜索失败: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    async def query_train_tickets(
+        self,
+        from_station: str,
+        to_station: str,
+        date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        查询火车票信息（12306 MCP 服务）
+        
+        Args:
+            from_station: 出发站
+            to_station: 到达站
+            date: 出发日期（可选，格式：YYYY-MM-DD）
+            
+        Returns:
+            车次信息列表
+        """
+        try:
+            result = await self.train_ticket_tool.query_trains(from_station, to_station, date)
+            return {
+                "success": True,
+                "data": result
+            }
+        except Exception as e:
+            logger.error(f"火车票查询失败: {e}")
             return {
                 "success": False,
                 "error": str(e)
