@@ -315,6 +315,69 @@ class SolutionExpertAgent(BaseAgent):
                         state["is_complete"] = True
                         logger.info(f"{self.name} 返回文件读取错误: {error_msg}")
                         return state
+            
+            # 知识库查询
+            if "knowledge_base" in tool_results:
+                kb_info = tool_results.get("knowledge_base", {})
+                logger.info(f"找到知识库信息: {kb_info}")
+                if isinstance(kb_info, dict):
+                    # 工具结果格式：{"success": True, "data": {...}}
+                    if kb_info.get("success") and "data" in kb_info:
+                        kb_data = kb_info.get("data", {})
+                    else:
+                        kb_data = kb_info
+                    
+                    logger.info(f"知识库数据: {kb_data}")
+                    if isinstance(kb_data, dict) and kb_data.get("success"):
+                        results = kb_data.get("results", [])
+                        query = kb_data.get("query", "")
+                        count = kb_data.get("count", len(results))
+                        source = kb_data.get("source", "")
+                        
+                        # 构建简洁的知识库搜索结果
+                        if results:
+                            kb_text = f"找到 {count} 条相关结果：\n"
+                            for i, result in enumerate(results[:5], 1):  # 最多显示5条
+                                if isinstance(result, dict):
+                                    content = result.get("content", result.get("text", ""))
+                                    score = result.get("score", "")
+                                    if content:
+                                        kb_text += f"{i}. {content}"
+                                        if score:
+                                            kb_text += f"（相关度：{score:.2f}）"
+                                        kb_text += "\n"
+                                else:
+                                    kb_text += f"{i}. {str(result)}\n"
+                            
+                            if count > 5:
+                                kb_text += f"（共{count}条结果，仅显示前5条）"
+                            
+                            if source:
+                                kb_text += f"\n数据来源：{source}"
+                        else:
+                            kb_text = f'未找到与"{query}"相关的知识库内容'
+                        
+                        state["solution_result"] = {
+                            "agent": self.name,
+                            "final_response": kb_text
+                        }
+                        state["current_agent"] = self.name
+                        state["next_agent"] = None
+                        state["is_complete"] = True
+                        logger.info(f"{self.name} 直接返回知识库查询结果: {query}")
+                        return state
+                    # 如果查询失败
+                    elif isinstance(kb_data, dict) and not kb_data.get("success"):
+                        error_msg = kb_data.get("error", "知识库查询失败")
+                        state["solution_result"] = {
+                            "agent": self.name,
+                            "final_response": f"知识库查询失败：{error_msg}"
+                        }
+                        state["current_agent"] = self.name
+                        state["next_agent"] = None
+                        state["is_complete"] = True
+                        logger.info(f"{self.name} 返回知识库查询错误: {error_msg}")
+                        return state
         
         # 添加解决方案提示
         solution_prompt = """请基于分析结果和工具结果提供简洁、直接的解决方案。

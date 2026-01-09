@@ -56,3 +56,15 @@ data/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# 测试文件（保留tests/目录下的正式测试）
+test_*.py
+!tests/test_*.py
+
+# 临时脚本
+*.sh
+*.ps1
+!install_missing_deps.sh
+
+# 演示脚本（可选，如果需要可以保留）
+# 演示脚本.txt
